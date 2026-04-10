@@ -1,0 +1,252 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Dijkstra Perú - Sistema de Rutas</title>
+    <script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyAc4GsxpuirBcsdSZ4patoGbWMxGnODFp4"></script>
+    <style>
+        .main-layout {
+        display: flex;
+        gap: 20px;
+        margin-top: 20px;
+    }
+       #map { 
+        flex: 3; /* El mapa toma 3 partes del espacio */
+        height: 600px; 
+        border-radius: 10px; 
+        box-shadow: 0 4px 10px rgba(0,0,0,0.1);
+    }
+    #leyenda-container { 
+        flex: 1; /* La leyenda toma 1 parte */
+        background: white; 
+        padding: 20px; 
+        border-radius: 10px; 
+        box-shadow: 0 4px 10px rgba(0,0,0,0.1);
+        max-height: 600px;
+        overflow-y: auto;
+    }
+    .item-ruta {
+        padding: 10px;
+        border-bottom: 1px solid #eee;
+        display: flex;
+        align-items: center;
+    }
+    .item-ruta:last-child { border-bottom: none; }
+    .numero {
+        background: #2196F3;
+        color: white;
+        width: 24px;
+        height: 24px;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        margin-right: 10px;
+        font-size: 12px;
+    }
+        body { font-family: 'Segoe UI', sans-serif; padding: 20px; background: #f4f4f4; }
+        .panel { background: white; padding: 20px; margin-bottom: 20px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); }
+
+    </style>
+</head>
+<body>
+    <div class="panel">
+        <h2>Mapa de Rutas Cortas - Perú</h2>
+        Origen: <select id="origen">{% for d in deps %}<option>{{d}}</option>{% endfor %}</select>
+        Destino: <select id="destino">{% for d in deps %}<option>{{d}}</option>{% endfor %}</select>
+        <button onclick="calcular()">Trazar Ruta</button>
+        <span id="info"></span>
+        <hr>
+            <label style="font-weight: bold; cursor: pointer;">
+                <input type="checkbox" id="modoEducativo" onchange="cambiarEstilo(this.checked)"> Modo Educativo
+            </label>
+    </div>
+    <div class="main-layout">
+        <div id="map"></div>
+        
+        <div id="leyenda-container">
+            <h3>Recorrido</h3>
+            <div id="distancia-total"></div>
+            <hr>
+            <div id="lista-pasos">
+                <p style="color: #888;">La ruta aparecerá aquí...</p>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let map;
+        let trazado;
+        let markers = []; //guarda los puntos de las cap de cada departamento
+        const listaDepartamentos = {{ departamentos_full | tojson }};
+
+        const estiloEducativo = [
+        // Ocultar TODO lo innecesario
+        {
+            featureType: "poi",
+            elementType: "all",
+            stylers: [{ visibility: "off" }]
+        },
+        {
+            featureType: "transit",
+            elementType: "all",
+            stylers: [{ visibility: "off" }]
+        },
+        {
+            featureType: "road",
+            elementType: "all",
+            stylers: [{ visibility: "off" }]
+        },
+        {
+            featureType: "water",
+            elementType: "labels",
+            stylers: [{ visibility: "off" }]
+        },
+
+        // fondo limpio
+        {
+            featureType: "landscape",
+            elementType: "all",
+            stylers: [
+            { color: "#f2f3f5" }
+            ]
+        },
+
+        //SOLO límites administrativos
+        {
+            featureType: "administrative",
+            elementType: "geometry",
+            stylers: [
+            { visibility: "on" },
+            { color: "#444444" },
+            { weight: 3 }
+            ]
+        },
+
+        // Ocultar nombres de departamentos y ciudades
+        {
+            featureType: "administrative",
+            elementType: "labels",
+            stylers: [{ visibility: "off" }]
+        }
+        ];
+
+        const estiloNormal = []; // Estilo por defecto de Google
+
+        function initMap() {
+            map = new google.maps.Map(document.getElementById('map'), {
+                center: {lat: -9.19, lng: -75.01}, 
+                zoom: 6,
+                gestureHandling: 'greedy',
+                mapTypeId: 'terrain'
+            });
+
+            // Dibujar un punto y nombre por cada departamento al iniciar
+            listaDepartamentos.forEach(dep => {
+                const marker = new google.maps.Marker({
+                    position: {lat: dep.lat, lng: dep.lng},
+                    map: null,//aun no se muestra solo lo hara cuando cambiemos a modo educativo
+                    title: dep.departamento,
+                    label: {
+                        text: dep.departamento,
+                        color: "black",
+                        fontWeight: "bold",
+                        fontSize: "12px"
+                    },
+                    // Usamos un icono de punto pequeño para que no estorbe
+                    icon: {
+                        path: google.maps.SymbolPath.CIRCLE,
+                        scale: 5,
+                        fillColor: "#F44336",
+                        fillOpacity: 1,
+                        strokeWeight: 2,
+                        strokeColor: "white"
+                    }
+                });
+                markers.push(marker);
+            });
+        }
+
+        async function calcular() {
+            const res = await fetch('/api/ruta', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({
+                    origen: document.getElementById('origen').value,
+                    destino: document.getElementById('destino').value
+                })
+            });
+            const data = await res.json();
+            
+            if(data.ruta) {
+                document.getElementById('info').innerText = ` Distancia: ${data.distancia} km`;
+                dibujar(data.ruta);
+                actualizarLeyenda(data.ruta, data.distancia);
+            }else{
+                alert("No se encontró una ruta terrestre.");
+            }
+        }
+
+
+        function dibujar(puntos) {
+            if(trazado) trazado.setMap(null);
+            const path = puntos.map(p => ({lat: p.lat, lng: p.lng}));
+            
+            trazado = new google.maps.Polyline({
+                path: path, geodesic: true, strokeColor: '#2196F3', strokeOpacity: 0.8, strokeWeight: 4
+            });
+            trazado.setMap(map);
+        }
+        function actualizarLeyenda(ruta, distancia) {
+            const contenedor = document.getElementById('lista-pasos');
+            const txtDistancia = document.getElementById('distancia-total');
+            
+            // Limpiar contenido previo
+            contenedor.innerHTML = "";
+            txtDistancia.innerText = `Distancia Total: ${distancia} km`;
+
+            // Crear la lista paso a paso
+            ruta.forEach((punto, index) => {
+                const div = document.createElement('div');
+                div.className = 'item-ruta';
+
+                let infoTramo = "";
+                if (index > 0) {
+                    // Distancia tramo = acumulado actual - acumulado anterior
+                    const distanciaTramo = (punto.acumulado - ruta[index - 1].acumulado).toFixed(2);
+                    infoTramo = `
+                        <div style="margin-left: 12px; border-left: 2px dashed #2196F3; padding: 5px 0 5px 20px; color: #666; font-size: 0.85em;">
+                            <span><b>+ ${distanciaTramo} km</b></span>
+                        </div>`;
+                }
+
+                div.innerHTML = `
+                    ${infoTramo}
+                    <div style="display: flex; align-items: center;">
+                        <div class="numero">${index + 1}</div>
+                        <div style="flex: 1;">
+                            <div style="display: flex; justify-content: space-between;">
+                                <strong>${punto.nombre}</strong>
+                            </div>
+                        </div>
+                    </div>
+                `;
+                contenedor.appendChild(div);
+            });
+        }
+
+    function cambiarEstilo(esEducativo) {
+        if (esEducativo) {
+            map.setOptions({ styles: estiloEducativo });
+            //agregamos marcadores
+            markers.forEach(marker => marker.setMap(map));
+        } else {
+            map.setOptions({ styles: estiloNormal });
+            //quitamos los marcadores
+            markers.forEach(marker => marker.setMap(null));
+        }
+    }
+
+        window.onload = initMap;
+    </script>
+</body>
+</html>

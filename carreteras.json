@@ -1,0 +1,61 @@
+[
+  ["Tumbes","Piura"],
+
+  ["Piura","Lambayeque"],
+  ["Piura","Cajamarca"],
+
+  ["Lambayeque","La Libertad"],
+  ["Lambayeque","Cajamarca"],
+
+  ["La Libertad","Áncash"],
+  ["La Libertad","Cajamarca"],
+
+  ["Áncash","Lima"],
+  ["Áncash","Huánuco"],
+
+  ["Lima","Callao"],
+  ["Lima","Lima Provincias"],
+  ["Lima","Ica"],
+  ["Lima","Junín"],
+
+  ["Lima Provincias","Áncash"],
+
+  ["Junín","Pasco"],
+  ["Junín","Huancavelica"],
+  ["Junín","Ayacucho"],
+  ["Junín","Huánuco"],
+
+  ["Pasco","Huánuco"],
+  ["Pasco","Ucayali"],
+
+  ["Huánuco","Ucayali"],
+  ["Huánuco","San Martín"],
+
+  ["San Martín","Amazonas"],
+  ["San Martín","Ucayali"],
+
+  ["Amazonas","Cajamarca"],
+
+  ["Ica","Arequipa"],
+  ["Ica","Ayacucho"],
+  ["Ica","Huancavelica"],
+
+  ["Huancavelica","Ayacucho"],
+
+  ["Ayacucho","Apurímac"],
+  ["Ayacucho","Cusco"],
+
+  ["Apurímac","Cusco"],
+
+  ["Cusco","Puno"],
+  ["Cusco","Madre de Dios"],
+  ["Cusco","Arequipa"],
+
+  ["Arequipa","Moquegua"],
+  ["Arequipa","Puno"],
+
+  ["Moquegua","Tacna"],
+  ["Moquegua","Puno"],
+
+  ["Tacna","Puno"]
+]
